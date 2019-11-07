@@ -1,16 +1,18 @@
 <template>
-  <div id="app">
-    <TimeLine />
+  <div id="app" class="ma-0">
   </div>
 </template>
 
 <script>
-import TimeLine from '@/components/Timeline.vue';
+import _ from 'lodash';
+import * as d3 from 'd3';
+import getTimeline from './timeline';
+import myData from './components/data.json';
 
 export default {
   name: 'app',
-  components: {
-    TimeLine,
+  mounted() {
+    getTimeline('#app', myData.records, d3, _);
   },
 };
 </script>

@@ -161,7 +161,7 @@ export default {
 
       this.svg.append('g').call(d3.axisLeft(this.yScale));
 
-      this.svg
+      this.clipPath = this.svg
         .append('defs')
         .append('svg:clipPath')
         .attr('id', 'clip')
@@ -285,40 +285,83 @@ export default {
 
     drawCircle() {
       const self = this;
-      this.filteredData.forEach((timeLine, index) => {
-        const circles = this.svg
-          .append('g')
-          .selectAll('circle')
-          .data(timeLine.observationData)
-          .enter()
-          .append('circle')
-          .attr('cx', d => self.xScale(d.startMoment))
-          .attr('cy', index * self.ySpace)
-          .attr('r', self.r)
-          .attr('width', 100)
-          .attr('height', 100)
-          .on('mouseover', (d) => {
-            // display tooltip
-            self.showTooltip(timeLine, d);
-          })
-          .on('mouseout', () => {
-            self.hideTooltip();
-          });
-        circles.attr('clip-path', 'url(#clip)');
-      });
-    },
-    drawObservationContainer() {
-      const observationContainer = this.svg
-        .selectAll('.observationContainer')
-        .data(this.filteredData);
+      // remove previousData
 
-      observationContainer
+      const circlesData = this.filteredData
+        .map((el, parentIndex) => {
+          const circleData = el.observationData;
+          return circleData.map(each => ({ ...each, label: el.label, parentIndex }));
+        });
+
+      console.log(circlesData);
+      const circleContainers = this.svg
+        .selectAll('.circleContainer')
+        .data(circlesData, d => d);
+
+      circleContainers
         .enter()
         .append('g')
-        .merge(observationContainer)
-        .attr('class', 'observationContainer');
+        .attr('class', 'circleContainer')
+        .merge(circleContainers)
+        .transition()
+        .attr('y', (d, i) => {
+          // console.log(d, i);
+          const yCoord = i * self.ySpace;
+          return yCoord;
+        });
+      circleContainers.exit().remove();
 
-      observationContainer.exit().remove();
+
+      const circles = circleContainers
+        .selectAll('circle')
+        .data(
+          d => d,
+          (d) => {
+            const key = d.startMoment + d.endMoment + d.label + d.conceptId;
+            console.log(d);
+            return key;
+          },
+        );
+      circles
+        .enter()
+        .append('circle')
+        // .merge(circles)
+        .attr('cx', d => self.xScale(d.startMoment))
+        .attr('cy', (d) => {
+          // console.log(d);
+          const yCoord = d.parentIndex * self.ySpace;
+          // console.log(yCoord);
+          return yCoord;
+        })
+        .attr('r', self.r)
+        .attr('width', 100)
+        .attr('height', 100);
+
+      // circleContainers.exit().remove();
+      // this.filteredData.forEach((timeLine, index) => {
+      //   const circles = this.svg
+      //     .append('g')
+      //     .attr('class', 'circleContainer');
+
+      //   circles
+      //     .selectAll('circle')
+      //     .data(timeLine.observationData)
+      //     .enter()
+      //     .append('circle')
+      //     .attr('cx', d => self.xScale(d.startMoment))
+      //     .attr('cy', index * self.ySpace)
+      //     .attr('r', self.r)
+      //     .attr('width', 100)
+      //     .attr('height', 100)
+      //     .on('mouseover', (d) => {
+      //       // display tooltip
+      //       self.showTooltip(timeLine, d);
+      //     })
+      //     .on('mouseout', () => {
+      //       self.hideTooltip();
+      //     });
+      //   circles.attr('clip-path', 'url(#clip)');
+      // });
     },
     drawLine() {
       const self = this;
@@ -327,13 +370,14 @@ export default {
           el => el.endMoment !== el.startMoment,
         );
         if (obData.length > 0) {
-          const lines = this.svg.selectAll('.observationContainer');
+          const lines = this.svg.append('g')
+            .attr('class', 'lineContainer');
+
           lines
             .selectAll('line')
             .data(obData)
             .enter()
             .append('line')
-            .attr('class', 'observationLine')
             .attr('x1', d => self.xScale(d.startMoment))
             .attr('y1', index * self.ySpace)
             .attr('x2', d => self.xScale(d.endMoment))
@@ -347,38 +391,64 @@ export default {
     },
     drawLabel() {
       const self = this;
-      const labels = this.svg
-        .selectAll('.label')
-        .data(this.filteredData);
+      const timelineParent = this.svg
+        .selectAll('.timelineParent')
+        .data(this.filteredData, d => d.id);
 
-      labels
+      // this for calculating extra height
+      const timelineParentSize = timelineParent.size();
+      // remove circles and lines
+      timelineParent.exit()
+        .select('.timelineChildren')
+        .selectAll('circle')
+        .transition()
+        .remove();
+      // remove label
+      timelineParent.exit().transition().remove();
+
+      const timelineParentEnter = timelineParent
         .enter()
-        .append('text')
-        .merge(labels)
-        .attr('class', 'label')
+        .append('g')
+        .attr('class', 'timelineParent')
+        .attr('transform', (d, i) => `translate(${-10},${i * self.ySpace})`);
+
+      timelineParentEnter.append('text')
+        .transition()
         .text(d => d.label)
-        .attr('x', -10)
-        .attr('y', (d, index) => (index) * self.ySpace)
-        .attr('dy', self.fontSize / 3)
+        .attr('class', 'label')
         .attr('font-size', d => (!d.belongTo ? self.domainFontSize : self.fontSize))
         .attr('font-weight', d => (!d.belongTo ? 'bold' : 'normal'))
+        .attr('dy', self.fontSize / 3)
         .style('text-anchor', 'end');
 
-      labels.exit().remove();
+      // update other timeline
+      timelineParent
+        .transition()
+        .attr('transform', (d, i) => `translate(${-10},${i * self.ySpace})`);
+      // update clipPath and xAxis and outer svg
+      const extraSpace = (timelineParent.size() - timelineParentSize) * self.ySpace;
+      this.clipPath
+        .attr('height', this.height + extraSpace);
+      this.xAxis
+        .attr('transform', `translate(0,${this.height + extraSpace})`);
+      d3.select('svg')
+        .attr('height', this.height + this.margin.top + this.margin.bottom + extraSpace);
+
+      d3.select('.brush').select('rect').attr('height', this.height + extraSpace);
+      d3.select('.brush').select('rect.selection').attr('height', this.height + extraSpace);
     },
     updateTimeline() {
-      this.filteredData.push(this.tData[3]);
+      // this.svg.selectAll('g.circleContainer').data([]).exit().remove(); // remove old data
+      this.filteredData.splice(1, 0, this.tData[12]);
+      // this.drawAndUpdateTimeline();
       // this.filteredData.splice(0, 1);
-      // this.drawObservationContainer();
       this.drawLabel();
-      // this.drawLine();
-      this.drawCircle();
+      // this.drawCircle();
     },
     drawAndUpdateTimeline() {
       this.drawAxis();
-      this.drawObservationContainer();
-      this.drawLine();
-      this.drawCircle();
+      // this.drawLine();
+      // this.drawCircle();
       this.drawLabel();
     },
   },
