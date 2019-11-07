@@ -8,9 +8,10 @@
 function main(htmlElement, myData, d3, _) {
   const r = 5;
   const fontSize = 12;
-  const domainFontSize = 20;
-  const ySpace = 20; // label space
+  const domainFontSize = 16;
+  const ySpace = 35; // label space
   const lineStrokeWidth = 3;
+  const truncateLength = 20;
   const margin = {
     top: 50,
     right: 60,
@@ -18,18 +19,23 @@ function main(htmlElement, myData, d3, _) {
     left: 200,
   };
   const lineStroke = 'grey';
+  const circleFill = 'grey';
+  const pinFill = 'white';
 
-
-  const button = d3.select(htmlElement)
+  // const button = d3.select(htmlElement)
+  //   .append('div')
+  //   .append('input')
+  //   .attr('type', 'button')
+  //   .attr('value', 'ADD');
+  // const buttonDel = d3.select(htmlElement)
+  //   .append('div')
+  //   .append('input')
+  //   .attr('type', 'button')
+  //   .attr('value', 'Delete');
+  d3.select(htmlElement)
     .append('div')
-    .append('input')
-    .attr('type', 'button')
-    .attr('value', 'ADD');
-  const buttonDel = d3.select(htmlElement)
-    .append('div')
-    .append('input')
-    .attr('type', 'button')
-    .attr('value', 'Delete');
+    .attr('class', 'tooltip')
+    .style('opacity', 0);
 
   const svg = d3.select(htmlElement)
     .append('svg')
@@ -58,7 +64,8 @@ function main(htmlElement, myData, d3, _) {
     .append('g')
     .attr('class', 'brush');
 
-  const fData = transformedData(myData).slice();
+  const fData = transformedData(myData)
+    .filter(timeline => !timeline.belongTo);
 
   const maxMoment = d3.max(
     fData
@@ -69,21 +76,8 @@ function main(htmlElement, myData, d3, _) {
 
   const minMoment = 0;
 
-  const dataItems = [fData[0], fData[1], fData[2], fData[3]];
-  const dataItems1 = [fData[0], fData[1], fData[2], fData[3]];
-  updateData(dataItems1);
-  let vv = 4;
-  button.on('click', () => {
-    vv += 1;
-    dataItems1.splice(1, 0, fData[vv]);
-    // dataItems1.splice(1, 1);
-    updateData(dataItems1);
-  });
-  buttonDel.on('click', () => {
-    vv += 1;
-    dataItems1.splice(1, 1);
-    updateData(dataItems1);
-  });
+  updateData(fData);
+
   function transformedData(data) {
     const tData = _.transform(
       data,
@@ -155,6 +149,7 @@ function main(htmlElement, myData, d3, _) {
       .attr('width', width + margin.left + margin.right)
       .attr('height', height + margin.top + margin.bottom);
 
+
     const xScale = d3.scaleLinear()
       .domain([minMoment, maxMoment])
       .range([0, width]);
@@ -221,25 +216,40 @@ function main(htmlElement, myData, d3, _) {
       .enter()
       .append('g')
       .attr('class', 'timelineParent')
-      .attr('transform', (d, i) => `translate(${-r},${i * ySpace})`);
+      .attr('transform', (d, i) => `translate(${0},${i * ySpace})`);
+
+    // timelineParentEnter.append('text')
+    //   .attr('x', -margin.left + 5)
+    //   .attr('dy', fontSize / 2)
+    //   .attr('font-size', d => (!d.belongTo ? domainFontSize : fontSize))
+    //   .attr('fill', pinFill)
+    //   .attr('stroke', lineStroke)
+    //   .attr('font-family', 'FontAwesome')
+    //   .attr('class', 'pinIcon')
+    //   .text('\uf08d');
+    // timelineParentEnter.append('i')
+    //   .attr('class', 'fa fa-fire');
 
     timelineParentEnter.append('text')
-      .text(d => d.label)
       .attr('class', 'label')
       .attr('font-size', d => (!d.belongTo ? domainFontSize : fontSize))
-      .attr('font-weight', d => (!d.belongTo ? 'bold' : 'normal'))
+      .attr('font-family', '"Open Sans", sans-serif, FontAwesome')
+      // .attr('font-weight', d => (!d.belongTo ? 'bold' : 'normal'))
       .attr('dy', fontSize / 3)
-      .style('text-anchor', 'end');
-    // merge back to the timelineParent
+      .attr('x', -margin.left + truncateLength)
+      .text(d => `${_.truncate(d.label, { length: truncateLength })} \uf107`) // only use if fontawesome is installed
+      .style('text-anchor', 'start');
+
 
     // append timelineChildren to newly added timelinesParent
     timelineParentEnter.append('g')
       .attr('class', 'timelineChildren');
+    // merge back to the timelineParent
 
     timelineParent = timelineParentEnter.merge(timelineParent);
     // update other timeline
     timelineParent
-      .attr('transform', (d, i) => `translate(${-r},${i * ySpace})`);
+      .attr('transform', (d, i) => `translate(${0},${i * ySpace})`);
 
     // draw circles and lines
     const timelineChildren = timelineParent.select('.timelineChildren');
@@ -263,63 +273,77 @@ function main(htmlElement, myData, d3, _) {
       .enter()
       .append('circle')
       .attr('cx', d => xScale(d.startMoment))
+      .attr('fill', circleFill)
       .attr('r', r)
       .attr('width', 100)
       .attr('height', 100)
       .on('mouseover', (d) => {
         // display tooltip
-        showTooltip(d);
+        const timelineObservationData = filteredData
+          .filter(el => !el.belongTo && (el.label === d.domain))[0];
+        showTooltip(timelineObservationData, d);
+      })
+      .on('mouseout', () => {
+        hideTooltip();
       });
-      // .on('mouseout', () => {
-      //   hideTooltip();
-      // });
-    console.log(circles.data());
     circles.attr('clip-path', 'url(#clip)');
 
-    // function getTooltipContent(dataPoint) {
-    //   const tooltipContentList = [];
-    //   observationData
-    //     .filter(point => point.startMoment === dataPoint.startMoment)
-    //     .forEach((point) => {
-    //       const pointIndex = tooltipContentList.findIndex(
-    //         p => p.startMoment === point.startMoment
-    //         && p.endMoment === point.endMoment
-    //         && p.conceptId === point.conceptId,
-    //       );
-    //       if (pointIndex > -1) {
-    //         tooltipContentList[pointIndex].frequency += 1;
-    //       } else {
-    //         tooltipContentList.push({ ...point, frequency: 1 });
-    //       }
-    //     });
-    //   let tooltipContent = '';
-    //   tooltipContentList.forEach((content) => {
-    //     const startEndDifferent = content.startMoment !== content.endMoment;
-    //     tooltipContent += `<div style="margin-bottom:5px">
-    //         <strong>${content.conceptId}</strong> <br />
-    // <span>Start day:
-    // ${content.startMoment} ${startEndDifferent ? `- End day: ${content.endMoment}` : ''}
-    //       </span>,
-    //         <span>Frequency: ${content.frequency} </span>
-    //       </div>`;
-    //   });
-    //   return tooltipContent;
-    // }
-    function showTooltip(d) {
-      // console.log(d);
-      //   const tooltipContent = tooltipContent(d);
-      //   const tooltip = d3.select('.tooltip');
-      //   tooltip
-      //     .transition()
-      //     .duration(100)
-      //     .style('opacity', 1);
+    function getTooltipContent(timelineObservationData, dataPoint) {
+      const tooltipContentList = [];
+      timelineObservationData
+        .filter(point => point.startMoment === dataPoint.startMoment)
+        .forEach((point) => {
+          const pointIndex = tooltipContentList.findIndex(
+            p => p.startMoment === point.startMoment
+              && p.endMoment === point.endMoment
+              && p.conceptId === point.conceptId,
+          );
+          if (pointIndex > -1) {
+            tooltipContentList[pointIndex].frequency += 1;
+          } else {
+            tooltipContentList.push({ ...point, frequency: 1 });
+          }
+        });
+      let tooltipContent = '';
+      tooltipContentList.forEach((content) => {
+        const startEndDifferent = content.startMoment !== content.endMoment;
+        tooltipContent
+        += `<div style="margin-bottom:5px">
+              <strong>${content.conceptId}</strong> <br />
+              <span>Start day: ${content.startMoment} 
+              ${
+  startEndDifferent
+    ? `- End day: ${content.endMoment}`
+    : ''
+}
+            </span>, 
+              <span>Frequency: ${content.frequency} </span>
+            </div>`;
+      });
+      return tooltipContent;
+    }
+    function showTooltip(timeLineData, d) {
+      const tooltipContent = getTooltipContent(timeLineData.observationData, d);
+      const tooltip = d3.select('.tooltip');
+      tooltip
+        .transition()
+        .duration(100)
+        .style('opacity', 1);
 
-      //   tooltip.html(tooltipContent);
+      tooltip.html(tooltipContent);
 
-    //   const tooltipSize = tooltip.node().getBoundingClientRect();
-    //   tooltip
-    //     .style('left', `${d3.event.pageX - tooltipSize.width / 2}px`)
-    //     .style('top', `${d3.event.pageY + 5}px`);
+      const tooltipSize = tooltip.node().getBoundingClientRect();
+      tooltip
+        .style('left', `${d3.event.pageX - tooltipSize.width / 2}px`)
+        .style('top', `${d3.event.pageY + 5}px`);
+    }
+
+    function hideTooltip() {
+      const tooltip = d3.select('.tooltip');
+      tooltip
+        .transition()
+        .duration(0)
+        .style('opacity', 0);
     }
   }
 }

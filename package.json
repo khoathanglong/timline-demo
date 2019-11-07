@@ -5,9 +5,13 @@
   "scripts": {
     "serve": "vue-cli-service serve",
     "build": "vue-cli-service build",
-    "lint": "vue-cli-service lint"
+    "lint": "vue-cli-service lint",
+    "serve-build": "serve dist"
   },
   "dependencies": {
+    "@fortawesome/fontawesome-svg-core": "^1.2.25",
+    "@fortawesome/free-solid-svg-icons": "^5.11.2",
+    "@fortawesome/vue-fontawesome": "^0.1.8",
     "core-js": "^3.3.2",
     "d3": "^4.10.0",
     "lodash": "^4.17.15",
@@ -23,6 +27,7 @@
     "eslint-plugin-vue": "^5.0.0",
     "less": "^3.0.4",
     "less-loader": "^5.0.0",
+    "serve": "^11.2.0",
     "vue-template-compiler": "^2.6.10"
   }
 }
