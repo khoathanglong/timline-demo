@@ -55,11 +55,13 @@ function main(htmlElement, myData, d3, _) {
     .append('g')
     .attr('class', 'brush');
 
-  const fData = transformedData(myData)
+  const domainData = transformedData(myData)
     .filter(timeline => !timeline.belongTo);
 
+  const detailedData = transformedData(myData)
+    .filter(timeline => timeline.belongTo);
   const maxMoment = d3.max(
-    fData
+    domainData
       .map(el => el.observationData)
       .flat()
       .map(el => el.endMoment),
@@ -67,7 +69,8 @@ function main(htmlElement, myData, d3, _) {
 
   const minMoment = 0;
 
-  updateData(fData);
+  // start drawing with domainData only
+  updateData(domainData);
 
   function transformedData(data) {
     const tData = _.transform(
@@ -93,6 +96,7 @@ function main(htmlElement, myData, d3, _) {
           id: domain,
           observationData: [observationData],
           belongTo: null,
+          expanded: false,
         };
 
         const timeLine = {
@@ -108,7 +112,7 @@ function main(htmlElement, myData, d3, _) {
         );
         if (timeLineDomainIndex > -1) {
           accumulator[timeLineDomainIndex].observationData.push(
-            observationData,
+            { ...observationData, inDomainLine: true },
           );
         } else {
           accumulator.push(timeLineDomain);
@@ -232,7 +236,25 @@ function main(htmlElement, myData, d3, _) {
       .attr('font-family', '"Open Sans", sans-serif, FontAwesome')
       .attr('dy', fontSize / 3)
       .attr('x', -margin.left + truncateLength)
-      .text(d => `${_.truncate(d.label, { length: truncateLength })} \uf107`) // only use if fontawesome is installed
+      .text((d) => {
+        const label = _.truncate(d.label, { length: truncateLength });
+        return d.belongTo ? label : `${label} \uf107`;
+      })
+      .on('click', (d) => {
+        if (d.belongTo) return;
+        const domainIndex = domainData.findIndex(el => el.label === d.label);
+        const expandedData = detailedData.filter(el => el.belongTo === d.label);
+        if (!d.expanded) {
+          // eslint-disable-next-line no-param-reassign
+          d.expanded = true;
+          domainData.splice(domainIndex + 1, 0, ...expandedData);
+        } else {
+          // eslint-disable-next-line no-param-reassign
+          d.expanded = false;
+          domainData.splice(domainIndex + 1, expandedData.length);
+        }
+        updateData(domainData);
+      }) // only use if fontawesome is installed
       .style('text-anchor', 'start');
 
 
@@ -276,9 +298,9 @@ function main(htmlElement, myData, d3, _) {
       .attr('height', 100)
       .on('mouseover', (d) => {
         // display tooltip
-        const timelineObservationData = filteredData
-          .filter(el => !el.belongTo && (el.label === d.domain))[0];
-        showTooltip(timelineObservationData, d);
+        const singleTimelineData = filteredData
+          .filter(el => (d.inDomainLine ? el.label === d.domain : el.id === d.conceptId))[0];
+        showTooltip(singleTimelineData, d);
       })
       .on('mouseout', () => {
         hideTooltip();
@@ -307,12 +329,7 @@ function main(htmlElement, myData, d3, _) {
         tooltipContent
         += `<div style="margin-bottom:5px">
               <strong>${content.conceptId}</strong> <br />
-              <span>Start day: ${content.startMoment} 
-              ${
-  startEndDifferent
-    ? `- End day: ${content.endMoment}`
-    : ''
-}
+              <span>Start day: ${content.startMoment} ${startEndDifferent ? `- End day: ${content.endMoment}` : ''}
             </span>, 
               <span>Frequency: ${content.frequency} </span>
             </div>`;

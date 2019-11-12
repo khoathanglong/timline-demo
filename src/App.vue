@@ -7,6 +7,8 @@
 </template>
 
 <script>
+/* eslint-disable no-unused-vars */
+
 import _ from 'lodash';
 import * as d3 from 'd3';
 import getTimeline from './timeline';
@@ -15,7 +17,8 @@ import myData from './components/data.json';
 export default {
   name: 'app',
   mounted() {
-    getTimeline('#timeline', myData.records, d3, _);
+    // eslint-disable-next-line new-cap
+    const timeline = new getTimeline('#timeline', myData.records, d3, _);
   },
 };
 </script>
