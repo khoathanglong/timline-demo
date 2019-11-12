@@ -10,7 +10,7 @@ function main(htmlElement, myData, d3, _) {
   const r = 5;
   const fontSize = 12;
   const domainFontSize = 16;
-  const ySpace = 35; // label space
+  const ySpace = 30; // label space
   const lineStrokeWidth = 3;
   const truncateLength = 20;
   const margin = {
@@ -216,7 +216,7 @@ function main(htmlElement, myData, d3, _) {
       .enter()
       .append('g')
       .attr('class', 'timelineParent')
-      .attr('transform', (d, i) => `translate(${0},${i * ySpace})`);
+      .attr('transform', (d, i) => (`translate(${0},${i * 2})`));
 
     // timelineParentEnter.append('text')
     //   .attr('x', -margin.left + 5)
@@ -231,26 +231,19 @@ function main(htmlElement, myData, d3, _) {
     //   .attr('class', 'fa fa-fire');
 
     timelineParentEnter.append('text')
-      .attr('class', 'label')
       .attr('font-size', d => (!d.belongTo ? domainFontSize : fontSize))
       .attr('font-family', '"Open Sans", sans-serif, FontAwesome')
       .attr('dy', fontSize / 3)
-      .attr('x', -margin.left + truncateLength)
-      .text((d) => {
-        const label = _.truncate(d.label, { length: truncateLength });
-        return d.belongTo ? label : `${label} \uf107`;
-      })
+      .attr('x', d => (d.belongTo ? -margin.left + truncateLength + 10 : -margin.left + truncateLength))
       .on('click', (d) => {
         if (d.belongTo) return;
         const domainIndex = domainData.findIndex(el => el.label === d.label);
         const expandedData = detailedData.filter(el => el.belongTo === d.label);
         if (!d.expanded) {
-          // eslint-disable-next-line no-param-reassign
-          d.expanded = true;
+          domainData[domainIndex].expanded = true;
           domainData.splice(domainIndex + 1, 0, ...expandedData);
         } else {
-          // eslint-disable-next-line no-param-reassign
-          d.expanded = false;
+          domainData[domainIndex].expanded = false;
           domainData.splice(domainIndex + 1, expandedData.length);
         }
         updateData(domainData);
@@ -268,13 +261,22 @@ function main(htmlElement, myData, d3, _) {
     timelineParent
       .attr('transform', (d, i) => `translate(${0},${i * ySpace})`);
 
+    timelineParent.selectAll('text')
+      .text((d) => {
+        const label = _.truncate(d.label, { length: truncateLength });
+        if (d.belongTo) {
+          return label;
+        }
+        return (d.expanded ? `${label} \uf106` : `${label} \uf107`);
+      });
     // draw circles and lines
     const timelineChildren = timelineParent.select('.timelineChildren');
+    timelineChildren.attr('clip-path', 'url(#clip)');
 
     // draw lines
     const lines = timelineChildren
       .selectAll('line')
-      .data(d => d.observationData.filter(el => el.endMoment !== el.startMoment), d => d)
+      .data(d => d.observationData.filter(el => el.endMoment !== el.startMoment))
       .enter()
       .append('line')
       .attr('class', 'observationLine')
@@ -282,7 +284,7 @@ function main(htmlElement, myData, d3, _) {
       .attr('x2', d => xScale(d.endMoment))
       .attr('stroke', lineStroke)
       .attr('stroke-width', lineStrokeWidth);
-    lines.attr('clip-path', 'url(#clip)');
+    // lines.attr('clip-path', 'url(#clip)');
     // cicles
     const circles = timelineChildren
       .selectAll('circle')
@@ -305,7 +307,7 @@ function main(htmlElement, myData, d3, _) {
       .on('mouseout', () => {
         hideTooltip();
       });
-    circles.attr('clip-path', 'url(#clip)');
+    // circles.attr('clip-path', 'url(#clip)');
 
     function getTooltipContent(timelineObservationData, dataPoint) {
       const tooltipContentList = [];
