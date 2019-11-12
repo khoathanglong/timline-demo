@@ -1,3 +1,4 @@
+/* eslint-disable prefer-arrow-callback */
 /* eslint-disable no-use-before-define */
 /* eslint-disable no-unused-vars */
 /* eslint-disable linebreak-style */
@@ -22,16 +23,6 @@ function main(htmlElement, myData, d3, _) {
   const circleFill = 'grey';
   const pinFill = 'white';
 
-  // const button = d3.select(htmlElement)
-  //   .append('div')
-  //   .append('input')
-  //   .attr('type', 'button')
-  //   .attr('value', 'ADD');
-  // const buttonDel = d3.select(htmlElement)
-  //   .append('div')
-  //   .append('input')
-  //   .attr('type', 'button')
-  //   .attr('value', 'Delete');
   d3.select(htmlElement)
     .append('div')
     .attr('class', 'tooltip')
@@ -210,6 +201,11 @@ function main(htmlElement, myData, d3, _) {
       .data(filteredData, d => d.id);
 
     // remove a timeline
+    // if not remove timelineChildren, they are still in memory even after being deleted
+    timelineParent
+      .exit()
+      .select('.timelineChildren')
+      .exit().remove();
     timelineParent.exit().remove();
 
     const timelineParentEnter = timelineParent
@@ -234,7 +230,6 @@ function main(htmlElement, myData, d3, _) {
       .attr('class', 'label')
       .attr('font-size', d => (!d.belongTo ? domainFontSize : fontSize))
       .attr('font-family', '"Open Sans", sans-serif, FontAwesome')
-      // .attr('font-weight', d => (!d.belongTo ? 'bold' : 'normal'))
       .attr('dy', fontSize / 3)
       .attr('x', -margin.left + truncateLength)
       .text(d => `${_.truncate(d.label, { length: truncateLength })} \uf107`) // only use if fontawesome is installed
@@ -269,7 +264,9 @@ function main(htmlElement, myData, d3, _) {
     // cicles
     const circles = timelineChildren
       .selectAll('circle')
-      .data(d => d.observationData, d => d)
+      .data(d => d.observationData);
+
+    circles
       .enter()
       .append('circle')
       .attr('cx', d => xScale(d.startMoment))
