@@ -1,3 +1,4 @@
+/* eslint-disable prefer-arrow-callback */
 /* eslint-disable no-use-before-define */
 /* eslint-disable no-unused-vars */
 /* eslint-disable linebreak-style */
@@ -69,17 +70,17 @@ function main(htmlElement, myData, d3, _) {
 
   const minMoment = 0;
 
-  const dataItems = [fData[0], fData[1], fData[2], fData[3]];
+  // const dataItems = [fData[0], fData[1], fData[2], fData[3]];
   const dataItems1 = [fData[0], fData[1], fData[2], fData[3]];
   updateData(dataItems1);
   let vv = 4;
-  button.on('click', () => {
+  button.on('click', function handleAddData() {
     vv += 1;
     dataItems1.splice(1, 0, fData[vv]);
     // dataItems1.splice(1, 1);
     updateData(dataItems1);
   });
-  buttonDel.on('click', () => {
+  buttonDel.on('click', function handleRemoveData() {
     vv += 1;
     dataItems1.splice(1, 1);
     updateData(dataItems1);
@@ -215,6 +216,10 @@ function main(htmlElement, myData, d3, _) {
       .data(filteredData, d => d.id);
 
     // remove a timeline
+    timelineParent
+      .exit()
+      .select('.timelineChildren')
+      .exit().remove();
     timelineParent.exit().remove();
 
     const timelineParentEnter = timelineParent
@@ -259,21 +264,23 @@ function main(htmlElement, myData, d3, _) {
     // cicles
     const circles = timelineChildren
       .selectAll('circle')
-      .data(d => d.observationData, d => d)
+      .data(d => d.observationData);
+
+    circles
       .enter()
       .append('circle')
       .attr('cx', d => xScale(d.startMoment))
       .attr('r', r)
       .attr('width', 100)
-      .attr('height', 100)
-      .on('mouseover', (d) => {
-        // display tooltip
-        showTooltip(d);
-      });
-      // .on('mouseout', () => {
-      //   hideTooltip();
-      // });
-    console.log(circles.data());
+      .attr('height', 100);
+    // .on('mouseover', (d) => {
+    //   // display tooltip
+    //   showTooltip(d);
+    // });
+    // .on('mouseout', () => {
+    //   hideTooltip();
+    // });
+    // console.log(circles.data());
     circles.attr('clip-path', 'url(#clip)');
 
     // function getTooltipContent(dataPoint) {
