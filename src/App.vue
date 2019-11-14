@@ -54,4 +54,6 @@ div.tooltip {
 .fa{
   font-family: 'FontAwesome' !important;
 }
+
+
 </style>
