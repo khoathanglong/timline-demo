@@ -9,7 +9,7 @@
 // rawData: Data from UCB atlas
 // htmlElement: Element that contain the chart
 // _ : lodash
-import { schemeSet3 } from 'd3-scale-chromatic';
+import { schemeSet3, schemeCategory10 } from 'd3-scale-chromatic';
 
 class Timeline {
   svg
@@ -52,7 +52,6 @@ class Timeline {
     this.truncate = _.truncate;
     this.filteredData = [];
     this.allData = this.transformedData(rawData);
-    console.log(this.allData.filter(el => el.id === 0));
     this.originalData = this.transformedData(rawData)
       .filter(timeline => !timeline.belongTo);
 
@@ -81,7 +80,7 @@ class Timeline {
       .domain(this.allData
         .filter(el => !el.belongTo)
         .map(el => el.id))
-      .range(schemeSet3);
+      .range(schemeCategory10);
   }
 
   implementFilter() {
@@ -105,7 +104,6 @@ class Timeline {
       this.handleCollapseAll();
     } else {
       const filteredData = this.allData.filter(el => el.belongTo && el.label.toLowerCase().includes(inputVal.toLowerCase()));
-      console.log(filteredData);
       if (filteredData.length === 0) {
         this.handleCollapseAll();
         return;
@@ -260,7 +258,6 @@ class Timeline {
         } else {
           const extent0 = xScale.invert(extent[0]);
           const extent1 = xScale.invert(extent[1]);
-          // console.log(extent0, extent1);
           xScale.domain([extent0, extent1]);
           this.svg.select('.brush').call(newBrush.move, null);
         }
@@ -284,7 +281,7 @@ class Timeline {
     // update timeline
     let timelineParent = this.svg
       .selectAll('.timelineParent')
-      .data(chartData, d => d.id + d.expanded);
+      .data(chartData, d => JSON.stringify(d));
 
     // remove a timeline
     // if not remove timelineChildren, they are still in memory even after being deleted
