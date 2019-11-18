@@ -9,6 +9,8 @@
 // rawData: Data from UCB atlas
 // htmlElement: Element that contain the chart
 // _ : lodash
+import { schemeSet3 } from 'd3-scale-chromatic';
+
 class Timeline {
   svg
 
@@ -34,9 +36,9 @@ class Timeline {
     left: 200,
   };
 
-  lineStroke = 'grey';
+  lineStroke = '#CDCDCD';
 
-  circleFill = 'grey';
+  circleFill = '#CDCDCD';
 
   pinFill = 'white';
 
@@ -50,6 +52,7 @@ class Timeline {
     this.truncate = _.truncate;
     this.filteredData = [];
     this.allData = this.transformedData(rawData);
+    console.log(this.allData.filter(el => el.id === 0));
     this.originalData = this.transformedData(rawData)
       .filter(timeline => !timeline.belongTo);
 
@@ -66,11 +69,19 @@ class Timeline {
         .flat()
         .map(el => el.startMoment),
     );
-
+    this.implementColorScheme();
     this.implementFilter();
     this.implementExpandingAll();
     this.implementTooltip();
     this.initializeTimeline();
+  }
+
+  implementColorScheme() {
+    this.colorScheme = this.d3.scaleOrdinal()
+      .domain(this.allData
+        .filter(el => !el.belongTo)
+        .map(el => el.id))
+      .range(schemeSet3);
   }
 
   implementFilter() {
@@ -93,7 +104,8 @@ class Timeline {
     if (inputVal === '') {
       this.handleCollapseAll();
     } else {
-      const filteredData = this.allData.filter(el => el.belongTo && el.label.includes(inputVal));
+      const filteredData = this.allData.filter(el => el.belongTo && el.label.toLowerCase().includes(inputVal.toLowerCase()));
+      console.log(filteredData);
       if (filteredData.length === 0) {
         this.handleCollapseAll();
         return;
@@ -330,7 +342,7 @@ class Timeline {
       .attr('class', 'observationLine')
       .attr('x1', d => xScale(d.startMoment))
       .attr('x2', d => xScale(d.endMoment))
-      .attr('stroke', this.lineStroke)
+      .attr('stroke', d => (d.inDomainLine ? this.lineStroke : this.colorScheme(d.conceptId)))
       .attr('stroke-width', this.lineStrokeWidth);
 
     // cicles
@@ -342,14 +354,14 @@ class Timeline {
       .enter()
       .append('circle')
       .attr('cx', d => xScale(d.startMoment))
-      .attr('fill', this.circleFill)
+      .attr('fill', d => (d.inDomainLine ? this.circleFill : this.colorScheme(d.conceptId)))
       .attr('r', this.r)
       .attr('width', 100)
       .attr('height', 100)
       .on('mouseover', (d) => {
       // display tooltip
         const singleTimelineData = chartData
-          .filter(el => (d.inDomainLine ? el.label === d.domain : el.id === d.conceptId))[0];
+          .filter(el => (d.inDomainLine ? el.label === d.domain : el.label === d.conceptName && d.domain === el.belongTo))[0];
         this.showTooltip(singleTimelineData, d);
       })
       .on('mouseout', () => {
@@ -359,6 +371,8 @@ class Timeline {
 
   showTooltip(timeLineData, d) {
     const tooltipContent = this.getTooltipContent(timeLineData.observationData, d);
+
+
     const tooltip = this.d3.select('.tooltip');
     tooltip
       .transition()
@@ -408,6 +422,8 @@ class Timeline {
             <span>Frequency: ${content.frequency} </span>
           </div>`;
     });
+
+
     return tooltipContent;
   }
 
@@ -433,7 +449,7 @@ class Timeline {
         const timeLineDomain = {
           label: domain,
           id: domain,
-          observationData: [observationData],
+          observationData: [{ ...observationData, inDomainLine: true }],
           belongTo: null,
           expanded: false,
           hidden: false,
