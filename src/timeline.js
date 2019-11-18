@@ -16,6 +16,10 @@ class Timeline {
 
   brush
 
+  brushed
+
+  xScale
+
   r = 5;
 
   fontSize = 12;
@@ -214,7 +218,28 @@ class Timeline {
     this.drawTimeline(this.originalData);
   }
 
+  resetBrush() {
+    this.svg.select('.brush').call(this.brushed.move, null);
+    this.xScale.domain([this.minMoment, this.maxMoment]);
+    this.svg.select('.timelineXAxis')
+      .call(this.d3.axisBottom(this.xScale));
+    // update circles
+    this.svg
+      .selectAll('circle')
+      .attr('cx', d => this.xScale(d.startMoment));
+
+    // update lines
+    this.svg
+      .selectAll('.observationLine')
+      .attr('x1', d => this.xScale(d.startMoment))
+      .attr('x2', d => this.xScale(d.endMoment));
+  }
+
   drawTimeline(chartData) {
+    // reset brushed if exists
+    if (this.brushed) {
+      this.resetBrush();
+    }
     // (re)calculate height and width
     const height = chartData.length * this.ySpace;
     const width = document.getElementById('app').offsetWidth - this.margin.left - this.margin.right;
@@ -224,13 +249,13 @@ class Timeline {
       .attr('height', height + this.margin.top + this.margin.bottom);
 
     // (re)calculate axis
-    const xScale = this.d3.scaleLinear()
+    this.xScale = this.d3.scaleLinear()
       .domain([this.minMoment, this.maxMoment])
       .range([0, width]);
     this.svg
       .select('.timelineXAxis')
       .attr('transform', `translate(0,${height})`)
-      .call(this.d3.axisBottom(xScale));
+      .call(this.d3.axisBottom(this.xScale));
 
     // (re)calculate clip path
     this.svg
@@ -244,7 +269,7 @@ class Timeline {
       idleTimeout = null;
     }
     // (re)apply brush
-    const newBrush = this.d3.brushX()
+    this.brushed = this.d3.brushX()
       .extent([[0, -this.r], [width, height]])
       .on('end', () => {
         const extent = this.d3.event.selection;
@@ -254,29 +279,29 @@ class Timeline {
             idleTimeout = setTimeout(idled, 350);
             return;
           }
-          xScale.domain([this.minMoment, this.maxMoment]);
+          this.xScale.domain([this.minMoment, this.maxMoment]);
         } else {
-          const extent0 = xScale.invert(extent[0]);
-          const extent1 = xScale.invert(extent[1]);
-          xScale.domain([extent0, extent1]);
-          this.svg.select('.brush').call(newBrush.move, null);
+          const extent0 = this.xScale.invert(extent[0]);
+          const extent1 = this.xScale.invert(extent[1]);
+          this.xScale.domain([extent0, extent1]);
+          this.svg.select('.brush').call(this.brushed.move, null);
         }
         // update axis
         this.svg.select('.timelineXAxis')
-          .call(this.d3.axisBottom(xScale));
+          .call(this.d3.axisBottom(this.xScale));
         // update circles
         this.svg
           .selectAll('circle')
-          .attr('cx', d => xScale(d.startMoment));
+          .attr('cx', d => this.xScale(d.startMoment));
 
         // update lines
         this.svg
           .selectAll('.observationLine')
-          .attr('x1', d => xScale(d.startMoment))
-          .attr('x2', d => xScale(d.endMoment));
+          .attr('x1', d => this.xScale(d.startMoment))
+          .attr('x2', d => this.xScale(d.endMoment));
       });
 
-    this.brush.call(newBrush);
+    this.brush.call(this.brushed);
 
     // update timeline
     let timelineParent = this.svg
@@ -337,8 +362,8 @@ class Timeline {
       .enter()
       .append('line')
       .attr('class', 'observationLine')
-      .attr('x1', d => xScale(d.startMoment))
-      .attr('x2', d => xScale(d.endMoment))
+      .attr('x1', d => this.xScale(d.startMoment))
+      .attr('x2', d => this.xScale(d.endMoment))
       .attr('stroke', d => (d.inDomainLine ? this.lineStroke : this.colorScheme(d.conceptId)))
       .attr('stroke-width', this.lineStrokeWidth);
 
@@ -350,7 +375,7 @@ class Timeline {
     circles
       .enter()
       .append('circle')
-      .attr('cx', d => xScale(d.startMoment))
+      .attr('cx', d => this.xScale(d.startMoment))
       .attr('fill', d => (d.inDomainLine ? this.circleFill : this.colorScheme(d.conceptId)))
       .attr('r', this.r)
       .attr('width', 100)
