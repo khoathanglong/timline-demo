@@ -9,16 +9,18 @@
 // rawData: Data from UCB atlas
 // htmlElement: Element that contain the chart
 // _ : lodash
-import { schemeSet3, schemeCategory10 } from 'd3-scale-chromatic';
+import { schemeCategory10 } from 'd3-scale-chromatic';
+import _ from 'lodash';
 
 class Timeline {
-  svg
+  svg;
 
-  brush
+  brush;
 
-  brushed
+  brushed;
 
-  xScale
+  xScale;
+
 
   r = 5;
 
@@ -40,6 +42,8 @@ class Timeline {
     left: 200,
   };
 
+  width = document.getElementById('app').offsetWidth - this.margin.left - this.margin.right;
+
   lineStroke = '#CDCDCD';
 
   circleFill = '#CDCDCD';
@@ -48,16 +52,18 @@ class Timeline {
 
   expandAllColor = '#467AB2';
 
-  constructor(htmlElement, rawData, d3, _) {
+  textFill = 'black';
+
+  pinnedFill = 'blue';
+
+  constructor(htmlElement, rawData, d3) {
     this.htmlElement = htmlElement;
     this.d3 = d3;
-    this.transform = _.transform;
-    this.debounce = _.debounce;
-    this.truncate = _.truncate;
     this.filteredData = [];
+    this.filterText = '';
+    this.allExpanded = false;
     this.allData = this.transformedData(rawData);
-    this.originalData = this.transformedData(rawData)
-      .filter(timeline => !timeline.belongTo);
+    this.originalData = this.transformedData(rawData).filter(timeline => !timeline.belongTo);
 
     this.maxMoment = d3.max(
       this.allData
@@ -80,119 +86,144 @@ class Timeline {
   }
 
   implementColorScheme() {
-    this.colorScheme = this.d3.scaleOrdinal()
-      .domain(this.allData
-        .filter(el => !el.belongTo)
-        .map(el => el.id))
+    this.colorScheme = this.d3
+      .scaleOrdinal()
+      .domain(this.allData.filter(el => !el.belongTo).map(el => el.id))
       .range(schemeCategory10);
   }
 
   implementFilter() {
-    const input = this.d3.select(this.htmlElement)
+    const input = this.d3
+      .select(this.htmlElement)
       .append('div')
       .style('text-align', 'left')
       .attr('class', 'timelineFilter')
       .append('input')
       .attr('placeholder', 'Filter timeline');
-    this.d3.select('.timelineFilter')
+    this.d3
+      .select('.timelineFilter')
       .style('padding', `${this.margin.top / 2}px 0 0 ${this.margin.left}px`);
-    input.on('input', this.debounce(() => this.handleFilter(), 200));
+    input.on(
+      'input',
+      _.debounce(() => this.handleFilter(), 200),
+    );
   }
 
   handleFilter() {
     this.filteredData.splice(0, this.filteredData.length);
     const inputVal = this.d3
       .select('div.timelineFilter')
-      .select('input').node().value.trim();
+      .select('input')
+      .node()
+      .value.trim();
+
+
+    this.filterText = inputVal;
+
     if (inputVal === '') {
       this.handleCollapseAll();
     } else {
-      const filteredData = this.allData.filter(el => el.belongTo && el.label.toLowerCase().includes(inputVal.toLowerCase()));
+      const filteredData = this.allData.filter(
+        el => el.belongTo && el.label.toLowerCase().includes(inputVal.toLowerCase()),
+      );
       if (filteredData.length === 0) {
+        this.filterText = '';
         this.handleCollapseAll();
         return;
       }
-      this.filteredData.splice(0, this.filteredData.length, ...filteredData);
-      this.originalData.filter(el => !el.belongTo && !el.hidden)
-        .map(el => ({ expanded: false, label: el.label }))
-        .forEach((d) => {
-          this.expandDomain(d);
-        });
+      this.handleExpandingAll();
     }
   }
 
   implementExpandingAll() {
-    const div = this.d3.select(this.htmlElement)
+    const div = this.d3
+      .select(this.htmlElement)
       .append('div')
       .attr('class', 'expandingButton')
       .style('text-align', 'left')
       .style('color', this.expandAllColor)
       .style('padding', `${this.margin.top / 3}px 0 0 ${this.margin.left}px`);
 
-    const expandText = div.append('text')
+    const expandText = div
+      .append('text')
       .text('Expand all domains')
       .style('font-size', `${this.fontSize}px`);
     expandText.on('click', () => this.handleExpandingAll());
   }
 
   handleExpandingAll() {
-    if (this.filteredData.length > 0) {
-      this.originalData.filter(el => !el.belongTo && !el.hidden)
-        .map(el => ({ expanded: false, label: el.label }))
-        .forEach((d) => {
-          this.expandDomain(d);
-        });
-    } else {
-      const expandingData = this.allData
+    // prevent multi expanding
+    // if (this.allExpanded) return;
+    let expandedData;
+    if (this.filterText) {
+      expandedData = this.allData
+        .filter(el => !el.belongTo || el.isPinned || (el.belongTo && el.label.toLowerCase().includes(this.filterText.toLowerCase())))
         .map((el) => {
-          if (!el.belongTo) return { ...el, expanded: true };
+          if (!el.belongTo && !el.expanded) return { ...el, expanded: true };
           return el;
         });
-
-      this.originalData.splice(0, this.originalData.length, ...expandingData);
-      this.drawTimeline(this.originalData);
+    } else {
+      expandedData = this.allData.map((el) => {
+        if (!el.belongTo) return { ...el, expanded: true };
+        return el;
+      });
     }
+    this.originalData.splice(0, this.originalData.length, ...expandedData);
+
+    this.drawTimeline(this.originalData);
+    this.allExpanded = true;
   }
 
   handleCollapseAll() {
-    const domainData = this.originalData
-      .filter(el => !el.belongTo)
-      .map(el => ({ ...el, expanded: false }));
-    this.originalData.splice(0, this.originalData.length, ...domainData);
+    _.remove(this.originalData, el => el.belongTo && !el.isPinned);
+    // change domain expanded state
+    for (let i; i < this.originalData.length; i += 1) {
+      if (!this.originalData[i].belongTo) {
+        this.originalData[i].expanded = false;
+      }
+    }
     this.drawTimeline(this.originalData);
   }
 
   implementTooltip() {
-    this.d3.select(this.htmlElement)
+    this.d3
+      .select(this.htmlElement)
       .append('div')
       .attr('class', 'tooltip')
       .style('opacity', 0);
   }
 
-
-  expandDomain(d) {
+  expandDomain(domain) {
     let expandedData;
-    if (this.filteredData.length > 0) {
-      expandedData = this.filteredData.filter(el => el.belongTo === d.label);
+    if (this.filterText) {
+      expandedData = this.allData
+        .filter(el => el.belongTo === domain.label)
+        .filter(el => el.isPinned || (el.belongTo && el.label.toLowerCase().includes(this.filterText.toLowerCase())));
     } else {
-      expandedData = this.allData.filter(el => el.belongTo === d.label);
+      expandedData = this.allData.filter(el => el.belongTo === domain.label);
     }
-    const domainIndex = this.originalData.findIndex(el => el.label === d.label);
-    if (!d.expanded) {
-      this.originalData[domainIndex].expanded = true;
-      // calculate length of current expanding concepts
-      // apply only for expanding filter
-      const domainConceptsLength = this.originalData.filter(el => el.belongTo === d.label).length;
-      this.originalData.splice(domainIndex + 1, domainConceptsLength, ...expandedData);
-    } else {
-      this.originalData[domainIndex].expanded = false;
-      this.originalData.splice(domainIndex + 1, expandedData.length);
-    }
+    const domainIndex = this.originalData.findIndex(el => el.label === domain.label);
+    this.originalData[domainIndex].expanded = true;
+    // calculate length of current expanding concepts
+    const domainConceptsLength = this.originalData.filter(el => el.belongTo === domain.label).length;
+    this.originalData.splice(domainIndex + 1, domainConceptsLength, ...expandedData);
     this.drawTimeline(this.originalData);
   }
 
+  closeDomain(domain) {
+    const domainIndex = this.originalData.findIndex(el => el.label === domain.label);
+    this.originalData[domainIndex].expanded = false;
+    const closingLength = this.originalData.filter(el => el.belongTo === domain.label).length;
+    const existingElement = this.originalData.filter(el => el.belongTo === domain.label && el.isPinned);
+    // _.remove(this.originalData, el => el.belongTo === domain.label && !el.isPinned);
+    this.originalData.splice(domainIndex + 1, closingLength, ...existingElement);
+    this.drawTimeline(this.originalData);
+  }
+
+
   initializeTimeline() {
-    this.svg = this.d3.select(this.htmlElement)
+    this.svg = this.d3
+      .select(this.htmlElement)
       .append('svg')
       .append('g')
       .attr('transform', `translate(${this.margin.left},${this.margin.top})`)
@@ -208,12 +239,18 @@ class Timeline {
       .attr('x', -this.r)
       .attr('y', -this.r);
     // create xAxis
-    this.svg.append('g')
-      .attr('class', 'timelineXAxis');
+    this.svg.append('g').attr('class', 'timelineXAxis');
+
+    this.xScale = this.d3
+      .scaleLinear()
+      .domain([this.minMoment, this.maxMoment])
+      .range([0, this.width]);
+
+    this.svg
+      .select('.timelineXAxis')
+      .call(this.d3.axisBottom(this.xScale));
     // create brush
-    this.brush = this.svg
-      .append('g')
-      .attr('class', 'brush');
+    this.brush = this.svg.append('g').attr('class', 'brush');
 
     this.drawTimeline(this.originalData);
   }
@@ -221,12 +258,9 @@ class Timeline {
   resetBrush() {
     this.svg.select('.brush').call(this.brushed.move, null);
     this.xScale.domain([this.minMoment, this.maxMoment]);
-    this.svg.select('.timelineXAxis')
-      .call(this.d3.axisBottom(this.xScale));
+    this.svg.select('.timelineXAxis').call(this.d3.axisBottom(this.xScale));
     // update circles
-    this.svg
-      .selectAll('circle')
-      .attr('cx', d => this.xScale(d.startMoment));
+    this.svg.selectAll('circle').attr('cx', d => this.xScale(d.startMoment));
 
     // update lines
     this.svg
@@ -240,27 +274,28 @@ class Timeline {
     if (this.brushed) {
       this.resetBrush();
     }
+    if (this.allExpanded) {
+      this.allExpanded = false;
+    }
     // (re)calculate height and width
     const height = chartData.length * this.ySpace;
-    const width = document.getElementById('app').offsetWidth - this.margin.left - this.margin.right;
+
     // re-assign height and width
-    this.d3.select('svg')
-      .attr('width', width + this.margin.left + this.margin.right)
+    this.d3
+      .select('svg')
+      .attr('width', this.width + this.margin.left + this.margin.right)
       .attr('height', height + this.margin.top + this.margin.bottom);
 
     // (re)calculate axis
-    this.xScale = this.d3.scaleLinear()
-      .domain([this.minMoment, this.maxMoment])
-      .range([0, width]);
+
     this.svg
       .select('.timelineXAxis')
-      .attr('transform', `translate(0,${height})`)
-      .call(this.d3.axisBottom(this.xScale));
+      .attr('transform', `translate(0,${height})`);
 
     // (re)calculate clip path
     this.svg
       .select('#clip rect')
-      .attr('width', width)
+      .attr('width', this.width)
       .attr('height', height);
 
     // to handle reset brush
@@ -269,13 +304,17 @@ class Timeline {
       idleTimeout = null;
     }
     // (re)apply brush
-    this.brushed = this.d3.brushX()
-      .extent([[0, -this.r], [width, height]])
+    this.brushed = this.d3
+      .brushX()
+      .extent([
+        [0, -this.r],
+        [this.width, height],
+      ])
       .on('end', () => {
         const extent = this.d3.event.selection;
         if (!extent) {
           if (!idleTimeout) {
-          // This allows to wait a little bit
+            // This allows to wait a little bit
             idleTimeout = setTimeout(idled, 350);
             return;
           }
@@ -287,12 +326,9 @@ class Timeline {
           this.svg.select('.brush').call(this.brushed.move, null);
         }
         // update axis
-        this.svg.select('.timelineXAxis')
-          .call(this.d3.axisBottom(this.xScale));
+        this.svg.select('.timelineXAxis').call(this.d3.axisBottom(this.xScale));
         // update circles
-        this.svg
-          .selectAll('circle')
-          .attr('cx', d => this.xScale(d.startMoment));
+        this.svg.selectAll('circle').attr('cx', d => this.xScale(d.startMoment));
 
         // update lines
         this.svg
@@ -303,54 +339,67 @@ class Timeline {
 
     this.brush.call(this.brushed);
 
-    // update timeline
+
     let timelineParent = this.svg
       .selectAll('.timelineParent')
-      .data(chartData, d => JSON.stringify(d));
+      .data(chartData, (d, i) => (d.belongTo ? d.label + d.belongTo + d.isPinned : d.label + d.expanded));
+
 
     // remove a timeline
     // if not remove timelineChildren, they are still in memory even after being deleted
     timelineParent
       .exit()
       .select('.timelineChildren')
-      .exit().remove();
+      .exit()
+      .remove();
     timelineParent.exit().remove();
 
     const timelineParentEnter = timelineParent
       .enter()
       .append('g')
       .attr('class', 'timelineParent')
-      .attr('transform', (d, i) => (`translate(${0},${i * 2})`));
+      .attr('transform', (d, i) => `translate(${0},${i * 2})`);
 
-    timelineParentEnter.append('text')
+    timelineParentEnter
+      .append('text')
       .attr('font-size', d => (!d.belongTo ? this.domainFontSize : this.fontSize))
-      .attr('font-family', '"Open Sans", sans-serif, FontAwesome')
+      .attr('class', 'fa')
       .attr('dy', this.fontSize / 3)
-      .attr('x', d => (d.belongTo ? -this.margin.left + this.truncateLength + 10 : -this.margin.left + this.truncateLength))
-      .on('click', (d) => {
-        if (d.belongTo) return;
-        this.expandDomain(d);
-      }) // only use if fontawesome is installed
+      .attr('x', d => (d.belongTo
+        ? -this.margin.left + this.truncateLength + 10
+        : -this.margin.left + this.truncateLength))
       .style('text-anchor', 'start');
 
-    // append timelineChildren to newly added timelinesParent
-    timelineParentEnter.append('g')
-      .attr('class', 'timelineChildren');
-    // merge back to the timelineParent
 
+    // append timelineChildren to newly added timelinesParent
+    timelineParentEnter.append('g').attr('class', 'timelineChildren');
+    // merge back to the timelineParent
     timelineParent = timelineParentEnter.merge(timelineParent);
     // update other timeline
-    timelineParent
-      .attr('transform', (d, i) => `translate(${0},${i * this.ySpace})`);
+    timelineParent.attr('transform', (d, i) => `translate(${0},${i * this.ySpace})`);
 
-    timelineParent.selectAll('text')
+    timelineParent
+      .select('text')
       .text((d) => {
-        const label = this.truncate(d.label, { length: this.truncateLength });
+        const label = _.truncate(d.label, { length: this.truncateLength });
         if (d.belongTo) {
-          return label;
+          return `\uf08d ${label}`;
         }
-        return (d.expanded ? `${label} \uf106` : `${label} \uf107`);
+        return d.expanded ? `${label} \uf106` : `${label} \uf107`;
+      })
+      .classed('domainLabel', d => !d.belongTo)
+      .attr('fill', d => (d.isPinned ? this.pinnedFill : this.textFill))
+      .on('click', (d, i) => {
+        if (d.belongTo) {
+          this.pinLabel(d, i);
+        } else if (!d.belongTo && !d.expanded) {
+          this.expandDomain(d);
+        } else if (!d.belongTo && d.expanded) {
+          this.closeDomain(d);
+        }
       });
+
+
     // draw circles and lines
     const timelineChildren = timelineParent.select('.timelineChildren');
     timelineChildren.attr('clip-path', 'url(#clip)');
@@ -368,9 +417,7 @@ class Timeline {
       .attr('stroke-width', this.lineStrokeWidth);
 
     // cicles
-    const circles = timelineChildren
-      .selectAll('circle')
-      .data(d => d.observationData);
+    const circles = timelineChildren.selectAll('circle').data(d => d.observationData);
 
     circles
       .enter()
@@ -381,9 +428,10 @@ class Timeline {
       .attr('width', 100)
       .attr('height', 100)
       .on('mouseover', (d) => {
-      // display tooltip
-        const singleTimelineData = chartData
-          .filter(el => (d.inDomainLine ? el.label === d.domain : el.label === d.conceptName && d.domain === el.belongTo))[0];
+        // display tooltip
+        const singleTimelineData = chartData.filter(el => (d.inDomainLine
+          ? el.label === d.domain
+          : el.label === d.conceptName && d.domain === el.belongTo))[0];
         this.showTooltip(singleTimelineData, d);
       })
       .on('mouseout', () => {
@@ -391,9 +439,23 @@ class Timeline {
       });
   }
 
+  pinLabel(d) {
+    // const pinnedDataIndex = this.pinnedData.findIndex(
+    //   el => el.id === d.id && el.belongTo === d.belongTo,
+    // );
+    const originalDataIndex = this.originalData.findIndex(
+      el => el.id === d.id && d.belongTo === el.belongTo,
+    );
+    const allDataIndex = this.allData.findIndex(
+      el => el.id === d.id && el.belongTo === d.belongTo,
+    );
+    this.allData[allDataIndex].isPinned = !d.isPinned;
+    this.originalData[originalDataIndex].isPinned = !d.isPinned;
+    this.drawTimeline(this.originalData);
+  }
+
   showTooltip(timeLineData, d) {
     const tooltipContent = this.getTooltipContent(timeLineData.observationData, d);
-
 
     const tooltip = this.d3.select('.tooltip');
     tooltip
@@ -436,21 +498,21 @@ class Timeline {
     let tooltipContent = '';
     tooltipContentList.forEach((content) => {
       const startEndDifferent = content.startMoment !== content.endMoment;
-      tooltipContent
-      += `<div style="margin-bottom:5px">
+      tooltipContent += `<div style="margin-bottom:5px">
             <strong>${content.conceptId}</strong> <br />
-            <span>Start day: ${content.startMoment} ${startEndDifferent ? `- End day: ${content.endMoment}` : ''}
+            <span>Start day: ${content.startMoment} ${
+  startEndDifferent ? `- End day: ${content.endMoment}` : ''
+}
           </span>, 
             <span>Frequency: ${content.frequency} </span>
           </div>`;
     });
 
-
     return tooltipContent;
   }
 
   transformedData(data) {
-    const tData = this.transform(
+    const tData = _.transform(
       data,
       // eslint-disable-next-line no-unused-vars
       (accumulator, item, index, originalArr) => {
@@ -475,23 +537,26 @@ class Timeline {
           belongTo: null,
           expanded: false,
           hidden: false,
+          isPinned: false,
         };
 
         const timeLine = {
           label: conceptName,
           id: conceptId,
-          observationData: [observationData],
+          isPinned: false,
+          hidden: false,
+          expanded: false,
+          observationData: [{ ...observationData }],
           belongTo: domain,
         };
 
         // push timeline for domain
-        const timeLineDomainIndex = accumulator.findIndex(
-          el => el.id === domain,
-        );
+        const timeLineDomainIndex = accumulator.findIndex(el => el.id === domain);
         if (timeLineDomainIndex > -1) {
-          accumulator[timeLineDomainIndex].observationData.push(
-            { ...observationData, inDomainLine: true },
-          );
+          accumulator[timeLineDomainIndex].observationData.push({
+            ...observationData,
+            inDomainLine: true,
+          });
         } else {
           accumulator.push(timeLineDomain);
         }
@@ -512,6 +577,5 @@ class Timeline {
     return tData;
   }
 }
-
 
 export default Timeline;
