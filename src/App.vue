@@ -55,5 +55,12 @@ div.tooltip {
   font-family: 'FontAwesome' !important;
 }
 
+.timelineFilter {
+  display: flex;
+ justify-content: space-between;
+}
+.timelineFilter:first-child {
+    text-align: left;
+}
 
 </style>

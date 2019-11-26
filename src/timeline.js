@@ -11,6 +11,7 @@
 // _ : lodash
 import { schemeCategory10 } from 'd3-scale-chromatic';
 import _ from 'lodash';
+import moment from 'moment';
 
 class Timeline {
   svg;
@@ -19,7 +20,7 @@ class Timeline {
 
   brushed;
 
-  xScale;
+  xDayScale;
 
   r = 5;
 
@@ -43,6 +44,8 @@ class Timeline {
 
   width = document.getElementById('app').offsetWidth - this.margin.left - this.margin.right;
 
+  height =1000
+
   lineStroke = '#CDCDCD';
 
   circleFill = '#CDCDCD';
@@ -62,6 +65,7 @@ class Timeline {
     this.d3 = d3;
     this.filteredData = [];
     this.filterText = '';
+    this.axisType = '';
     this.allExpanded = false;
     this.allData = this.transformedData(rawData);
     this.originalData = this.transformedData(rawData).filter(timeline => !timeline.belongTo);
@@ -79,8 +83,23 @@ class Timeline {
         .flat()
         .map(el => el.startMoment),
     );
+
+    this.maxDate = d3.max(
+      this.allData
+        .map(el => el.observationData)
+        .flat()
+        .map(el => el.endDate),
+    );
+
+    this.minDate = d3.min(
+      this.allData
+        .map(el => el.observationData)
+        .flat()
+        .map(el => el.startDate),
+    );
     this.implementColorScheme();
     this.implementFilter();
+    this.implementAxisSelection();
     this.implementExpandingAll();
     this.implementTooltip();
     this.initializeTimeline();
@@ -134,6 +153,34 @@ class Timeline {
       }
       this.handleExpandingAll();
     }
+  }
+
+  implementAxisSelection() {
+    const container = this.d3
+      .select('.timelineFilter')
+      .append('div')
+      .style('text-align', 'right')
+      .style('margin-right', `${this.margin.right / 2}px`);
+
+    container
+      .append('text')
+      .text('axis type: ');
+
+    const selection = container
+      .append('select')
+      .on('change', () => this.changeAxisView());
+
+    const options = ['Day', 'Date'];
+    selection.selectAll('option')
+      .data(options)
+      .enter()
+      .append('option')
+      .text(d => d);
+  }
+
+  changeAxisView() {
+    const selected = this.d3.select('select').property('value');
+    this.axisType = selected;
   }
 
   implementExpandingAll() {
@@ -248,15 +295,24 @@ class Timeline {
       .attr('height', 10)
       .attr('x', -this.r)
       .attr('y', -this.r);
-    // create xAxis
-    this.svg.append('g').attr('class', 'timelineXAxis');
+    // create day xAxis
+    this.svg.append('g').attr('class', 'dayAxis');
+    // create date xAxis
+    this.svg.append('g').attr('class', 'dateAxis');
 
-    this.xScale = this.d3
+    // dayAxis Scale
+    this.xDayScale = this.d3
       .scaleLinear()
       .domain([this.minMoment, this.maxMoment])
       .range([0, this.width]);
+    // dateAxis Scale
+    this.xDateScale = this.d3
+      .scaleTime()
+      .domain([this.minDate, this.maxDate])
+      .range([0, this.width]);
 
-    this.svg.select('.timelineXAxis').call(this.d3.axisBottom(this.xScale));
+    this.svg.select('.dayAxis').call(this.d3.axisBottom(this.xDayScale));
+    this.svg.select('.dateAxis').call(this.d3.axisBottom(this.xDateScale));
     // create brush
     this.brush = this.svg.append('g').attr('class', 'brush');
 
@@ -265,45 +321,23 @@ class Timeline {
 
   resetBrush() {
     this.svg.select('.brush').call(this.brushed.move, null);
-    this.xScale.domain([this.minMoment, this.maxMoment]);
-    this.svg.select('.timelineXAxis').call(this.d3.axisBottom(this.xScale));
+    this.xDayScale.domain([this.minMoment, this.maxMoment]);
+    this.xDateScale.domain([this.minDate, this.maxDate]);
+
+
+    this.svg.select('.dayAxis').call(this.d3.axisBottom(this.xDayScale));
+    this.svg.select('.dateAxis').call(this.d3.axisBottom(this.xDateScale));
     // update circles
-    this.svg.selectAll('circle').attr('cx', d => this.xScale(d.startMoment));
+    this.svg.selectAll('circle').attr('cx', d => this.xDayScale(d.startMoment));
 
     // update lines
     this.svg
       .selectAll('.observationLine')
-      .attr('x1', d => this.xScale(d.startMoment))
-      .attr('x2', d => this.xScale(d.endMoment));
+      .attr('x1', d => this.xDayScale(d.startMoment))
+      .attr('x2', d => this.xDayScale(d.endMoment));
   }
 
-  drawTimeline(chartData) {
-    // reset brushed if exists
-    if (this.brushed) {
-      this.resetBrush();
-    }
-    if (this.allExpanded) {
-      this.allExpanded = false;
-    }
-    // (re)calculate height and width
-    const height = chartData.length * this.ySpace;
-
-    // re-assign height and width
-    this.d3
-      .select('svg')
-      .attr('width', this.width + this.margin.left + this.margin.right)
-      .attr('height', height + this.margin.top + this.margin.bottom);
-
-    // (re)calculate axis
-
-    this.svg.select('.timelineXAxis').attr('transform', `translate(0,${height})`);
-
-    // (re)calculate clip path
-    this.svg
-      .select('#clip rect')
-      .attr('width', this.width)
-      .attr('height', height);
-
+  makeBrush() {
     // to handle reset brush
     let idleTimeout;
     function idled() {
@@ -314,7 +348,7 @@ class Timeline {
       .brushX()
       .extent([
         [0, -this.r],
-        [this.width, height],
+        [this.width, this.height],
       ])
       .on('end', () => {
         const extent = this.d3.event.selection;
@@ -324,26 +358,66 @@ class Timeline {
             idleTimeout = setTimeout(idled, 350);
             return;
           }
-          this.xScale.domain([this.minMoment, this.maxMoment]);
+          this.xDayScale.domain([this.minMoment, this.maxMoment]);
+          this.xDateScale.domain([this.minDate, this.maxDate]);
         } else {
-          const extent0 = this.xScale.invert(extent[0]);
-          const extent1 = this.xScale.invert(extent[1]);
-          this.xScale.domain([extent0, extent1]);
+          const extentDay0 = this.xDayScale.invert(extent[0]);
+          const extentDay1 = this.xDayScale.invert(extent[1]);
+
+          const extentDate0 = this.xDateScale.invert(extent[0]);
+          const extentDate1 = this.xDateScale.invert(extent[1]);
+
+          this.xDayScale.domain([extentDay0, extentDay1]);
+          this.xDateScale.domain([extentDate0, extentDate1]);
           this.svg.select('.brush').call(this.brushed.move, null);
         }
         // update axis
-        this.svg.select('.timelineXAxis').call(this.d3.axisBottom(this.xScale));
+        this.svg.select('.dayAxis').call(this.d3.axisBottom(this.xDayScale));
+        this.svg.select('.dateAxis').call(this.d3.axisBottom(this.xDateScale));
         // update circles
-        this.svg.selectAll('circle').attr('cx', d => this.xScale(d.startMoment));
+        this.svg.selectAll('circle').attr('cx', d => this.xDayScale(d.startMoment));
 
         // update lines
         this.svg
           .selectAll('.observationLine')
-          .attr('x1', d => this.xScale(d.startMoment))
-          .attr('x2', d => this.xScale(d.endMoment));
+          .attr('x1', d => this.xDayScale(d.startMoment))
+          .attr('x2', d => this.xDayScale(d.endMoment));
       });
 
     this.brush.call(this.brushed);
+  }
+
+  drawTimeline(chartData) {
+    console.log(chartData);
+    // reset brushed if exists
+    if (this.brushed) {
+      this.resetBrush();
+    }
+    if (this.allExpanded) {
+      this.allExpanded = false;
+    }
+    // (re)calculate height and width
+    this.height = chartData.length * this.ySpace;
+
+    // re-assign height and width
+    this.d3
+      .select('svg')
+      .attr('width', this.width + this.margin.left + this.margin.right)
+      .attr('height', this.height + this.margin.top + this.margin.bottom);
+
+    // (re)calculate axis
+
+    this.svg.select('.dayAxis').attr('transform', `translate(0,${this.height})`);
+
+    // (re)calculate clip path
+    this.svg
+      .select('#clip rect')
+      .attr('width', this.width)
+      .attr('height', this.height);
+
+
+    this.makeBrush();
+
 
     let timelineParent = this.svg
       .selectAll('.timelineParent')
@@ -449,8 +523,8 @@ class Timeline {
       .enter()
       .append('line')
       .attr('class', 'observationLine')
-      .attr('x1', d => this.xScale(d.startMoment))
-      .attr('x2', d => this.xScale(d.endMoment))
+      .attr('x1', d => this.xDayScale(d.startMoment))
+      .attr('x2', d => this.xDayScale(d.endMoment))
       .attr('stroke', d => (d.inDomainLine ? this.lineStroke : this.colorScheme(d.conceptId)))
       .attr('stroke-width', this.lineStrokeWidth);
 
@@ -460,7 +534,7 @@ class Timeline {
     circles
       .enter()
       .append('circle')
-      .attr('cx', d => this.xScale(d.startMoment))
+      .attr('cx', d => this.xDayScale(d.startMoment))
       .attr('fill', d => (d.inDomainLine ? this.circleFill : this.colorScheme(d.conceptId)))
       .attr('r', this.r)
       .attr('width', 100)
@@ -533,11 +607,13 @@ class Timeline {
       });
     let tooltipContent = '';
     tooltipContentList.forEach((content) => {
+      const startTime = this.axisType === 'Date' ? moment(content.startDate).format('MM-DD-YYYY') : content.startMoment;
+      const endTime = this.axisType === 'Date' ? moment(content.endDate).format('MM-DD-YYYY') : content.endMoment;
       const startEndDifferent = content.startMoment !== content.endMoment;
       tooltipContent += `<div style="margin-bottom:5px">
             <strong>${content.conceptId}</strong> <br />
-            <span>Start day: ${content.startMoment} ${
-  startEndDifferent ? `- End day: ${content.endMoment}` : ''
+            <span>Start: ${startTime} ${
+  startEndDifferent ? `- End: ${endTime}` : ''
 }
           </span>, 
             <span>Frequency: ${content.frequency} </span>
@@ -548,19 +624,22 @@ class Timeline {
   }
 
   transformedData(data) {
+    // const format = this.d3.timeFormat('%m/%d/%Y');
     const tData = _.transform(
       data,
       // eslint-disable-next-line no-unused-vars
       (accumulator, item, index, originalArr) => {
-        const { domain } = item;
-        const { conceptId } = item;
-        const { conceptName } = item;
-        const { startDay } = item;
-        const { endDay } = item;
-
+        const { conceptId, conceptName, domain } = item;
+        const { endDay, startDay } = item;
+        const startDate = item.startDate || new Date(moment(new Date()).add(startDay, 'days'));
+        const endDate = item.startDate || new Date(moment(new Date()).add(endDay, 'days'));
         const observationData = {
-          startMoment: startDay,
-          endMoment: endDay,
+          startMoment: this.axisType === 'Date' ? startDate : startDay,
+          endMoment: this.axisType === 'Date' ? endDate : endDay,
+          endDay,
+          startDay,
+          endDate,
+          startDate,
           conceptId,
           conceptName,
           domain,
