@@ -21,7 +21,6 @@ class Timeline {
 
   xScale;
 
-
   r = 5;
 
   fontSize = 12;
@@ -48,13 +47,15 @@ class Timeline {
 
   circleFill = '#CDCDCD';
 
-  pinFill = 'white';
+  pinFill = '#467AB2';
 
   expandAllColor = '#467AB2';
 
   textFill = 'black';
 
   pinnedFill = 'blue';
+
+  pinnedIcon;
 
   constructor(htmlElement, rawData, d3) {
     this.htmlElement = htmlElement;
@@ -84,6 +85,7 @@ class Timeline {
     this.implementTooltip();
     this.initializeTimeline();
   }
+
 
   implementColorScheme() {
     this.colorScheme = this.d3
@@ -116,7 +118,6 @@ class Timeline {
       .select('input')
       .node()
       .value.trim();
-
 
     this.filterText = inputVal;
 
@@ -157,7 +158,11 @@ class Timeline {
     let expandedData;
     if (this.filterText) {
       expandedData = this.allData
-        .filter(el => !el.belongTo || el.isPinned || (el.belongTo && el.label.toLowerCase().includes(this.filterText.toLowerCase())))
+        .filter(
+          el => !el.belongTo
+            || el.isPinned
+            || (el.belongTo && el.label.toLowerCase().includes(this.filterText.toLowerCase())),
+        )
         .map((el) => {
           if (!el.belongTo && !el.expanded) return { ...el, expanded: true };
           return el;
@@ -177,7 +182,7 @@ class Timeline {
   handleCollapseAll() {
     _.remove(this.originalData, el => el.belongTo && !el.isPinned);
     // change domain expanded state
-    for (let i; i < this.originalData.length; i += 1) {
+    for (let i = 0; i < this.originalData.length; i += 1) {
       if (!this.originalData[i].belongTo) {
         this.originalData[i].expanded = false;
       }
@@ -198,14 +203,18 @@ class Timeline {
     if (this.filterText) {
       expandedData = this.allData
         .filter(el => el.belongTo === domain.label)
-        .filter(el => el.isPinned || (el.belongTo && el.label.toLowerCase().includes(this.filterText.toLowerCase())));
+        .filter(
+          el => el.isPinned
+            || (el.belongTo && el.label.toLowerCase().includes(this.filterText.toLowerCase())),
+        );
     } else {
       expandedData = this.allData.filter(el => el.belongTo === domain.label);
     }
     const domainIndex = this.originalData.findIndex(el => el.label === domain.label);
     this.originalData[domainIndex].expanded = true;
     // calculate length of current expanding concepts
-    const domainConceptsLength = this.originalData.filter(el => el.belongTo === domain.label).length;
+    const domainConceptsLength = this.originalData.filter(el => el.belongTo === domain.label)
+      .length;
     this.originalData.splice(domainIndex + 1, domainConceptsLength, ...expandedData);
     this.drawTimeline(this.originalData);
   }
@@ -214,12 +223,13 @@ class Timeline {
     const domainIndex = this.originalData.findIndex(el => el.label === domain.label);
     this.originalData[domainIndex].expanded = false;
     const closingLength = this.originalData.filter(el => el.belongTo === domain.label).length;
-    const existingElement = this.originalData.filter(el => el.belongTo === domain.label && el.isPinned);
+    const existingElement = this.originalData.filter(
+      el => el.belongTo === domain.label && el.isPinned,
+    );
     // _.remove(this.originalData, el => el.belongTo === domain.label && !el.isPinned);
     this.originalData.splice(domainIndex + 1, closingLength, ...existingElement);
     this.drawTimeline(this.originalData);
   }
-
 
   initializeTimeline() {
     this.svg = this.d3
@@ -246,9 +256,7 @@ class Timeline {
       .domain([this.minMoment, this.maxMoment])
       .range([0, this.width]);
 
-    this.svg
-      .select('.timelineXAxis')
-      .call(this.d3.axisBottom(this.xScale));
+    this.svg.select('.timelineXAxis').call(this.d3.axisBottom(this.xScale));
     // create brush
     this.brush = this.svg.append('g').attr('class', 'brush');
 
@@ -288,9 +296,7 @@ class Timeline {
 
     // (re)calculate axis
 
-    this.svg
-      .select('.timelineXAxis')
-      .attr('transform', `translate(0,${height})`);
+    this.svg.select('.timelineXAxis').attr('transform', `translate(0,${height})`);
 
     // (re)calculate clip path
     this.svg
@@ -339,19 +345,21 @@ class Timeline {
 
     this.brush.call(this.brushed);
 
-
     let timelineParent = this.svg
       .selectAll('.timelineParent')
-      .data(chartData, (d, i) => (d.belongTo ? d.label + d.belongTo + d.isPinned : d.label + d.expanded));
-
+      .data(chartData, d => (d.belongTo ? d.label + d.belongTo + d.isPinned : d.label + d.expanded));
 
     // remove a timeline
     // if not remove timelineChildren, they are still in memory even after being deleted
+    timelineParent.exit().select('.labelContainers').remove();
+
     timelineParent
       .exit()
       .select('.timelineChildren')
       .exit()
       .remove();
+
+
     timelineParent.exit().remove();
 
     const timelineParentEnter = timelineParent
@@ -360,44 +368,74 @@ class Timeline {
       .attr('class', 'timelineParent')
       .attr('transform', (d, i) => `translate(${0},${i * 2})`);
 
-    timelineParentEnter
-      .append('text')
-      .attr('font-size', d => (!d.belongTo ? this.domainFontSize : this.fontSize))
-      .attr('class', 'fa')
-      .attr('dy', this.fontSize / 3)
-      .attr('x', d => (d.belongTo
-        ? -this.margin.left + this.truncateLength + 10
-        : -this.margin.left + this.truncateLength))
-      .style('text-anchor', 'start');
 
-
+    const labelContainers = timelineParentEnter.append('g').attr('class', 'labelContainers');
     // append timelineChildren to newly added timelinesParent
     timelineParentEnter.append('g').attr('class', 'timelineChildren');
-    // merge back to the timelineParent
-    timelineParent = timelineParentEnter.merge(timelineParent);
-    // update other timeline
-    timelineParent.attr('transform', (d, i) => `translate(${0},${i * this.ySpace})`);
 
-    timelineParent
-      .select('text')
-      .text((d) => {
-        const label = _.truncate(d.label, { length: this.truncateLength });
-        if (d.belongTo) {
-          return `\uf08d ${label}`;
-        }
-        return d.expanded ? `${label} \uf106` : `${label} \uf107`;
-      })
-      .classed('domainLabel', d => !d.belongTo)
-      .attr('fill', d => (d.isPinned ? this.pinnedFill : this.textFill))
+    labelContainers
+      .attr('transform', (d, i) => `translate(${d.belongTo
+        ? -this.margin.left + this.truncateLength + 20
+        : -this.margin.left + this.truncateLength},${this.fontSize})`)
       .on('click', (d, i) => {
         if (d.belongTo) {
-          this.pinLabel(d, i);
+          this.pinLabel({ ...d, isPinned: !d.isPinned });
         } else if (!d.belongTo && !d.expanded) {
           this.expandDomain(d);
         } else if (!d.belongTo && d.expanded) {
           this.closeDomain(d);
         }
       });
+
+    labelContainers.append('text')
+      .attr('class', 'fa icon')
+      .attr('font-size', d => (!d.belongTo ? this.domainFontSize : this.fontSize))
+      .attr('transform', function (d) {
+        // if (!d.belongTo) return 'none';
+        const me = labelContainers.node();
+        const x1 = me.getBBox().x + me.getBBox().width / 2;// the center x about which you want to rotate
+        const y1 = me.getBBox().y + me.getBBox().height / 2;// the center y about which you want to rotate
+        return `rotate(45, ${x1}, ${y1})`;// rotate 180 degrees about x and y
+      })
+      .attr('x', -5);
+
+    labelContainers
+      .append('text')
+      .attr('class', 'fa label')
+      .attr('font-size', d => (!d.belongTo ? this.domainFontSize : this.fontSize))
+      .attr('fill', d => (d.isPinned ? this.pinnedFill : this.textFill))
+      .style('text-anchor', 'start')
+      .attr('x', 10);
+
+
+    // merge back to the timelineParent
+    timelineParent = timelineParentEnter.merge(timelineParent);
+    // update other timeline
+    timelineParent.attr('transform', (d, i) => `translate(${0},${i * this.ySpace})`);
+
+
+    timelineParent
+      .select('g.labelContainers')
+      .select('text.label')
+      .text((d) => {
+        const label = _.truncate(d.label, { length: this.truncateLength });
+        if (d.belongTo) {
+          return label;
+        }
+        return d.expanded ? `${label} \uf106` : `${label} \uf107`;
+      })
+      .attr('fill', d => (d.isPinned ? this.pinFill : this.textFill));
+
+    timelineParent
+      .select('g.labelContainers')
+      .select('text.icon')
+      .text((d) => {
+        if (d.label === 'drug') {
+          return '';
+        }
+        return (d.belongTo ? '\uf08d' : '');
+      })
+      .attr('fill', d => (d.isPinned ? this.pinFill : this.textFill));
 
 
     // draw circles and lines
@@ -446,11 +484,9 @@ class Timeline {
     const originalDataIndex = this.originalData.findIndex(
       el => el.id === d.id && d.belongTo === el.belongTo,
     );
-    const allDataIndex = this.allData.findIndex(
-      el => el.id === d.id && el.belongTo === d.belongTo,
-    );
-    this.allData[allDataIndex].isPinned = !d.isPinned;
-    this.originalData[originalDataIndex].isPinned = !d.isPinned;
+    const allDataIndex = this.allData.findIndex(el => el.id === d.id && el.belongTo === d.belongTo);
+    this.allData[allDataIndex].isPinned = d.isPinned;
+    this.originalData[originalDataIndex].isPinned = d.isPinned;
     this.drawTimeline(this.originalData);
   }
 
