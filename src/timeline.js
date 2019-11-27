@@ -181,6 +181,8 @@ class Timeline {
   changeAxisView() {
     const selected = this.d3.select('select').property('value');
     this.axisType = selected;
+    this.svg.select('.dayAxis').classed('hidden-axis', selected !== 'Day');
+    this.svg.select('.dateAxis').classed('hidden-axis', selected !== 'Date');
   }
 
   implementExpandingAll() {
@@ -298,7 +300,7 @@ class Timeline {
     // create day xAxis
     this.svg.append('g').attr('class', 'dayAxis');
     // create date xAxis
-    this.svg.append('g').attr('class', 'dateAxis');
+    this.svg.append('g').attr('class', 'dateAxis hidden-axis');
 
     // dayAxis Scale
     this.xDayScale = this.d3
@@ -388,7 +390,6 @@ class Timeline {
   }
 
   drawTimeline(chartData) {
-    console.log(chartData);
     // reset brushed if exists
     if (this.brushed) {
       this.resetBrush();
@@ -408,6 +409,7 @@ class Timeline {
     // (re)calculate axis
 
     this.svg.select('.dayAxis').attr('transform', `translate(0,${this.height})`);
+    this.svg.select('.dateAxis').attr('transform', `translate(0,${this.height})`);
 
     // (re)calculate clip path
     this.svg

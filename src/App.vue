@@ -63,4 +63,7 @@ div.tooltip {
     text-align: left;
 }
 
+.hidden-axis {
+  visibility: hidden;
+}
 </style>
