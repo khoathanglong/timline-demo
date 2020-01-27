@@ -9,8 +9,6 @@ import _ from 'lodash';
 import moment from 'moment';
 import * as d3 from 'd3';
 
-
-console.log(d3);
 const icons = {
   open:
     'M11.9994 1.72559L1.16058 13.1063C0.894011 13.3862 0.466495 13.3862 0.199926 13.1063C-0.0666428 12.8264 -0.0666428 12.3775 0.199926 12.0976L11.5216 0.209923C11.7881 -0.0699738 12.2156 -0.0699738 12.4822 0.209924L23.7988 12.0976C23.9296 12.2349 24 12.4198 24 12.5993C24 12.7789 23.9346 12.9637 23.7988 13.101C23.5322 13.3809 23.1047 13.3809 22.8382 13.101L11.9994 1.72559Z',
@@ -123,7 +121,9 @@ class Timeline {
     d3.select(`#${this.chartContainer} .profileTimeline`).on('click', () => {
       const tagName = d3.event.target.tagName.toLowerCase();
       const clickOnCircle = typeof tagName === 'string' && tagName === 'circle';
-      const colorPicker = d3.select(`#${this.chartContainer}`).select('.colorPicker');
+      const colorPicker = d3
+        .select(`#${this.chartContainer}`)
+        .select('.colorPicker');
 
       if (!clickOnCircle) {
         colorPicker
@@ -133,11 +133,28 @@ class Timeline {
           .style('z-index', -1);
       }
     });
+
+    window.addEventListener(
+      'resize',
+      _.throttle(() => {
+        this.width = document.getElementById(this.chartContainer).offsetWidth
+          - this.margin.left
+          - this.margin.right;
+        this.updateScale();
+        this.drawTimeline(this.originalData);
+      }, 200),
+    );
   }
 
   updateData(rawData) {
-    this.allData.splice(0, this.allData.length, ...this.transformedData(rawData));
-    const newOriginalData = this.transformedData(rawData).filter(timeline => !timeline.belongTo);
+    this.allData.splice(
+      0,
+      this.allData.length,
+      ...this.transformedData(rawData),
+    );
+    const newOriginalData = this.transformedData(rawData).filter(
+      timeline => !timeline.belongTo,
+    );
     this.originalData.splice(0, this.originalData.length, ...newOriginalData);
     this.maxMoment = d3.max(
       this.allData
@@ -171,12 +188,20 @@ class Timeline {
   }
 
   updateScale() {
+    // dayAxis Scale
+    this.xDayScale = d3.scaleLinear().range([0, this.width]);
+    // dateAxis Scale
+    this.xDateScale = d3.scaleTime().range([0, this.width]);
     this.xDayScale.domain([this.minMoment, this.maxMoment]);
     // dateAxis Scale
     this.xDateScale.domain([this.minDate, this.maxDate]);
 
-    this.svg.select(`#${this.chartContainer} .dayAxis`).call(d3.axisBottom(this.xDayScale));
-    this.svg.select(`#${this.chartContainer} .dateAxis`).call(d3.axisBottom(this.xDateScale));
+    this.svg
+      .select(`#${this.chartContainer} .dayAxis`)
+      .call(d3.axisBottom(this.xDayScale));
+    this.svg
+      .select(`#${this.chartContainer} .dateAxis`)
+      .call(d3.axisBottom(this.xDateScale));
   }
 
   implementColorScheme() {
@@ -201,10 +226,7 @@ class Timeline {
       'padding',
       `${this.margin.top / 2}px 0 0 ${this.margin.left}px`,
     );
-    input.on(
-      'input',
-      _.debounce(() => this.handleFilter(), 200),
-    );
+    input.on('input', _.debounce(() => this.handleFilter(), 200));
   }
 
   handleFilter() {
@@ -221,7 +243,8 @@ class Timeline {
       this.handleCollapseAll();
     } else {
       const filteredData = this.allData.filter(
-        el => el.belongTo && el.label.toLowerCase().includes(inputVal.toLowerCase()),
+        el => el.belongTo
+          && el.label.toLowerCase().includes(inputVal.toLowerCase()),
       );
       if (filteredData.length === 0) {
         this.filterText = '';
@@ -254,7 +277,8 @@ class Timeline {
   }
 
   changeAxisView() {
-    const selected = d3.select(`#${this.chartContainer} .switch>input`).node().checked;
+    const selected = d3.select(`#${this.chartContainer} .switch>input`).node()
+      .checked;
     this.axisType = selected ? 'Date' : 'Day';
     this.svg.select('.dayAxis').classed('hidden-axis', selected);
     this.svg.select('.dateAxis').classed('hidden-axis', !selected);
@@ -293,7 +317,8 @@ class Timeline {
         .filter(
           el => !el.belongTo
             || el.isPinned
-            || (el.belongTo && el.label.toLowerCase().includes(this.filterText.toLowerCase())),
+            || (el.belongTo
+              && el.label.toLowerCase().includes(this.filterText.toLowerCase())),
         )
         .map((el) => {
           if (!el.belongTo && !el.expanded) return { ...el, expanded: true };
@@ -337,9 +362,23 @@ class Timeline {
       .style('opacity', 0)
       .style('z-index', -1);
 
-    const palette = ['#1f78b4', '#33a02c', '#e31a1c', '#ff7f00', '#6a3d9a', '#b15928'];
+    const palette = [
+      '#1f78b4',
+      '#33a02c',
+      '#e31a1c',
+      '#ff7f00',
+      '#6a3d9a',
+      '#b15928',
+    ];
 
-    const iconColors = ['#a6cee3', '#b2df8a', '#fb9a99', '#fdbf6f', '#cab2d6', '#ff9'];
+    const iconColors = [
+      '#a6cee3',
+      '#b2df8a',
+      '#fb9a99',
+      '#fdbf6f',
+      '#cab2d6',
+      '#ff9',
+    ];
     const colorButtons = container
       .selectAll('button')
       .data(palette)
@@ -348,8 +387,11 @@ class Timeline {
 
     colorButtons
       .attr('title', 'Set selected events color')
-      .attr('class', 'btn selected-color')
-      .attr('style', (d, i) => `background: ${d}; borderColor: ${iconColors[i]}`);
+      .attr('class', 'btn selected-color btn-sm')
+      .attr(
+        'style',
+        (d, i) => `background: ${d}; borderColor: ${iconColors[i]}`,
+      );
 
     colorButtons
       .append('span')
@@ -366,29 +408,45 @@ class Timeline {
         .filter(el => el.belongTo === domain.label)
         .filter(
           el => el.isPinned
-            || (el.belongTo && el.label.toLowerCase().includes(this.filterText.toLowerCase())),
+            || (el.belongTo
+              && el.label.toLowerCase().includes(this.filterText.toLowerCase())),
         );
     } else {
       expandedData = this.allData.filter(el => el.belongTo === domain.label);
     }
-    const domainIndex = this.originalData.findIndex(el => el.label === domain.label);
+    const domainIndex = this.originalData.findIndex(
+      el => el.label === domain.label,
+    );
     this.originalData[domainIndex].expanded = true;
     // calculate length of current expanding concepts
-    const domainConceptsLength = this.originalData.filter(el => el.belongTo === domain.label)
-      .length;
-    this.originalData.splice(domainIndex + 1, domainConceptsLength, ...expandedData);
+    const domainConceptsLength = this.originalData.filter(
+      el => el.belongTo === domain.label,
+    ).length;
+    this.originalData.splice(
+      domainIndex + 1,
+      domainConceptsLength,
+      ...expandedData,
+    );
     this.drawTimeline(this.originalData);
   }
 
   closeDomain(domain) {
-    const domainIndex = this.originalData.findIndex(el => el.label === domain.label);
+    const domainIndex = this.originalData.findIndex(
+      el => el.label === domain.label,
+    );
     this.originalData[domainIndex].expanded = false;
-    const closingLength = this.originalData.filter(el => el.belongTo === domain.label).length;
+    const closingLength = this.originalData.filter(
+      el => el.belongTo === domain.label,
+    ).length;
     const existingElement = this.originalData.filter(
       el => el.belongTo === domain.label && el.isPinned,
     );
     // _.remove(this.originalData, el => el.belongTo === domain.label && !el.isPinned);
-    this.originalData.splice(domainIndex + 1, closingLength, ...existingElement);
+    this.originalData.splice(
+      domainIndex + 1,
+      closingLength,
+      ...existingElement,
+    );
     this.drawTimeline(this.originalData);
   }
 
@@ -397,8 +455,12 @@ class Timeline {
     this.xDayScale.domain([this.minMoment, this.maxMoment]);
     this.xDateScale.domain([this.minDate, this.maxDate]);
 
-    this.svg.select(`#${this.chartContainer} .dayAxis`).call(d3.axisBottom(this.xDayScale));
-    this.svg.select(`#${this.chartContainer} .dateAxis`).call(d3.axisBottom(this.xDateScale));
+    this.svg
+      .select(`#${this.chartContainer} .dayAxis`)
+      .call(d3.axisBottom(this.xDayScale));
+    this.svg
+      .select(`#${this.chartContainer} .dateAxis`)
+      .call(d3.axisBottom(this.xDateScale));
     // update circles
     this.svg.selectAll('circle').attr('cx', d => this.xDayScale(d.startDay));
 
@@ -418,10 +480,7 @@ class Timeline {
     // (re)apply brush
     this.brushed = d3
       .brushX()
-      .extent([
-        [0, -this.r],
-        [this.width, this.height],
-      ])
+      .extent([[0, -this.r], [this.width, this.height]])
       .on('end', () => {
         const extent = d3.event.selection;
         if (!extent) {
@@ -447,7 +506,9 @@ class Timeline {
         this.svg.select('.dayAxis').call(d3.axisBottom(this.xDayScale));
         this.svg.select('.dateAxis').call(d3.axisBottom(this.xDateScale));
         // update circles
-        this.svg.selectAll('circle').attr('cx', d => this.xDayScale(d.startDay));
+        this.svg
+          .selectAll('circle')
+          .attr('cx', d => this.xDayScale(d.startDay));
 
         // update lines
         this.svg
@@ -474,8 +535,12 @@ class Timeline {
 
     // (re)calculate axis
 
-    this.svg.select('.dayAxis').attr('transform', `translate(0,${this.height})`);
-    this.svg.select('.dateAxis').attr('transform', `translate(0,${this.height})`);
+    this.svg
+      .select('.dayAxis')
+      .attr('transform', `translate(0,${this.height})`);
+    this.svg
+      .select('.dateAxis')
+      .attr('transform', `translate(0,${this.height})`);
 
     // (re)calculate clip path
     this.svg
@@ -509,7 +574,9 @@ class Timeline {
       .attr('class', 'timelineParent')
       .attr('transform', (d, i) => `translate(${0},${i * 2})`);
 
-    const labelContainers = timelineParentEnter.append('g').attr('class', 'labelContainers');
+    const labelContainers = timelineParentEnter
+      .append('g')
+      .attr('class', 'labelContainers');
     // append timelineChildren to newly added timelinesParent
     timelineParentEnter.append('g').attr('class', 'timelineChildren');
 
@@ -541,7 +608,10 @@ class Timeline {
     labelContainers
       .append('text')
       .attr('class', 'label')
-      .attr('style', d => `font-size: ${!d.belongTo ? this.domainFontSize : this.fontSize}`)
+      .attr(
+        'style',
+        d => `font-size: ${!d.belongTo ? this.domainFontSize : this.fontSize}`,
+      )
       .attr('fill', this.textFill)
       .style('text-anchor', 'start')
       .attr('x', 10);
@@ -562,7 +632,9 @@ class Timeline {
       })
       .attr('fill', this.textFill);
 
-    const iconPath = timelineParent.select('g.labelContainers').select('path.icon');
+    const iconPath = timelineParent
+      .select('g.labelContainers')
+      .select('path.icon');
     iconPath
       .attr('d', (d) => {
         if (d.belongTo) {
@@ -595,7 +667,9 @@ class Timeline {
     // draw lines
     const lines = timelineChildren.selectAll('line').data(
       (d) => {
-        const observationData = d.observationData.filter(el => el.endDay !== el.startDay);
+        const observationData = d.observationData.filter(
+          el => el.endDay !== el.startDay,
+        );
         return observationData.map(el => ({
           ...el,
           selectedColor: d.selectedColor,
@@ -612,10 +686,14 @@ class Timeline {
       .attr('class', 'observationLine')
       .attr('x1', d => this.xDayScale(d.startDay))
       .attr('x2', d => this.xDayScale(d.endDay))
-      .attr(
-        'style',
-        d => `fill: ${d.inDomainLine ? this.circleFill : this.colorScheme(d.conceptId)}`,
-      )
+      .attr('stroke', (d) => {
+        if (d.inDomainLine) {
+          return ` ${this.circleFill}`;
+        } if (d.selectedColor) {
+          return `${d.selectedColor}`;
+        }
+        return `${this.colorScheme(d.conceptId)}`;
+      })
       .attr('stroke-width', this.lineStrokeWidth);
 
     // cicles
@@ -638,8 +716,7 @@ class Timeline {
       .attr('style', (d) => {
         if (d.inDomainLine) {
           return `fill: ${this.circleFill}`;
-        }
-        if (d.selectedColor) {
+        } if (d.selectedColor) {
           return `fill: ${d.selectedColor}`;
         }
         return `fill: ${this.colorScheme(d.conceptId)}`;
@@ -669,7 +746,9 @@ class Timeline {
     const originalDataIndex = this.originalData.findIndex(
       el => el.id === d.id && d.belongTo === el.belongTo,
     );
-    const allDataIndex = this.allData.findIndex(el => el.id === d.id && el.belongTo === d.belongTo);
+    const allDataIndex = this.allData.findIndex(
+      el => el.id === d.id && el.belongTo === d.belongTo,
+    );
     this.allData[allDataIndex].isPinned = d.isPinned;
     this.originalData[originalDataIndex].isPinned = d.isPinned;
     this.drawTimeline(this.originalData);
@@ -692,7 +771,10 @@ class Timeline {
 
     const tooltipSize = tooltip.node().getBoundingClientRect();
     const coordinates = d3.mouse(this.svg.node());
-    tooltip.style('left', `${coordinates[0] + this.margin.left - tooltipSize.width}px`);
+    tooltip.style(
+      'left',
+      `${coordinates[0] + this.margin.left - tooltipSize.width}px`,
+    );
     tooltip.style('top', `${coordinates[1] + this.margin.top}px`);
   }
 
@@ -725,12 +807,16 @@ class Timeline {
       const startTime = this.axisType === 'Date'
         ? moment(content.startDate).format('MM-DD-YYYY')
         : content.startDay;
-      const endTime = this.axisType === 'Date' ? moment(content.endDate).format('MM-DD-YYYY') : content.endDay;
+      const endTime = this.axisType === 'Date'
+        ? moment(content.endDate).format('MM-DD-YYYY')
+        : content.endDay;
       const startEndDifferent = content.startDay !== content.endDay;
       tooltipContent += `<div style="margin-bottom:5px">
             <strong>${content.conceptId}</strong> <br />
             <span>${content.conceptName}</span> <br />
-            <span>Start: ${startTime} ${startEndDifferent ? `- End: ${endTime}` : ''}
+            <span>Start: ${startTime} ${
+  startEndDifferent ? `- End: ${endTime}` : ''
+}
           </span>, 
             <span>Frequency: ${content.frequency} </span>
           </div>`;
@@ -790,7 +876,9 @@ class Timeline {
         };
 
         // push timeline for domain
-        const timeLineDomainIndex = accumulator.findIndex(el => el.id === domain);
+        const timeLineDomainIndex = accumulator.findIndex(
+          el => el.id === domain,
+        );
         if (timeLineDomainIndex > -1) {
           accumulator[timeLineDomainIndex].observationData.push({
             ...observationData,
@@ -821,7 +909,10 @@ class Timeline {
     const colorPickerSize = colorPicker.node().getBoundingClientRect();
     const coordinates = d3.mouse(this.svg.node());
 
-    colorPicker.style('left', `${coordinates[0] + this.margin.left - colorPickerSize.width / 2}px`);
+    colorPicker.style(
+      'left',
+      `${coordinates[0] + this.margin.left - colorPickerSize.width / 2}px`,
+    );
     colorPicker.style(
       'top',
       `${coordinates[1] + this.margin.top + colorPickerSize.height * 1.5}px`,
@@ -869,13 +960,18 @@ class Timeline {
   }
 
   removeInput() {
-    document.querySelector(`#${this.chartContainer} .switch>input`).checked = false;
+    document.querySelector(
+      `#${this.chartContainer} .switch>input`,
+    ).checked = false;
     this.changeAxisView();
 
-    document.querySelector(`#${this.chartContainer} .timelineFilter input`).value = '';
+    document.querySelector(
+      `#${this.chartContainer} .timelineFilter input`,
+    ).value = '';
     this.filteredData.splice(0, this.filteredData.length);
     this.filterText = null;
   }
 }
+
 
 export default Timeline;
